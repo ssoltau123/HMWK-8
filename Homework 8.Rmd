@@ -1,0 +1,256 @@
+---
+title: "Homework 8"
+output: html_notebook
+---
+
+
+
+```{r}
+class(Nile)
+plot(Nile)
+```
+
+1. What is the class of Nile? What is the time interval of the time series?
+
+Answer
+Nile is in the class of time series.  It appears that the time interval of the time series is 80 years
+
+setwd("Users/susansoltau/Desktop/ca.ozone")
+getwd()
+
+install.packages("tidyverse")
+getwd()
+```{r}
+library(tidyverse)
+require(readr)  
+o3.filenames <- list.files(pattern = ".txt")   
+o3.filelist <- lapply(o3.filenames, read_delim, delim = "|") 
+names(o3.filelist) <- gsub(".txt","", o3.filenames) 
+
+```
+
+```{r}
+class(o3.filelist)
+o3.filelist
+```
+
+install.packages("maps")
+```{r}
+require(maps)
+require(stringr)
+require(dplyr)
+library(dplyr)
+require(tidyr)
+daily.mean <- function(df) {
+  df %>% 
+  group_by(site = as.factor(site), date) %>% 
+  summarize(o3 = mean(obs, na.rm = TRUE)) %>% 
+  drop_na()  
+  }
+d <- map(o3.filelist, daily.mean)
+d
+
+```
+
+```{r}
+require(purrr)
+filter.station <- function(df, x) {
+  df %>% 
+  filter(site == x)
+}
+sb.o3 <- map(d, filter.station, 2008)
+sb.o3
+```
+
+```{r}
+sb <- sb.o3 %>% 
+  bind_rows()
+```
+
+install.packages("maps")
+install.packages("dplyr")
+```{r}
+require(ggplot2)
+ggplot(sb, aes(x = date, y = o3)) + geom_line()
+
+```
+
+
+```{r}
+sb.ts <- ts(sb$o3, start = c(1980,1), frequency = 365.25)
+sb.ts
+```
+
+2. ts() only handles regularly spaced time series data. How do we deal with irregularly spaced time series? Do some internet research and describe some options, as well as pitfalls or limitations.
+
+Answer
+Some work arounds include that depending on the frequency that your data was collected at, you could convert the dates into something else (eg. days to weeks). This could make the time series more regularly spaces however you lose information on the exact days you got the data on especially if you are required to be as specific as possible in your analysis.  Another possibility is doing a seasonal decomposition with stl() though it doesn't work well for additive models in contrast with mulitplicative ones.  
+
+```{r}
+plot.ts(sb.ts)
+```
+
+```{r}
+acf(sb.ts)
+
+```
+
+```{r}
+sb$mo <- as.factor(lubridate::month(sb$date))
+ggplot(sb, aes(x = mo, y = o3, group = mo)) + geom_boxplot()
+```
+
+```{r}
+require(lubridate)
+sb$yr <- year(sb$date)
+sb.mo <- sb %>%
+  select(-site, -date) %>% 
+  group_by(yr, mo) %>% 
+  summarize(o3 = median(o3)) 
+sb.mo
+```
+```{r}
+ggplot(sb.mo, aes(x = mo, y = o3, group = mo)) + geom_boxplot()
+
+```
+
+```{r}
+sb.mo.ts <- ts(sb.mo$o3, start = c(1980, 1), frequency = 12)
+acf(sb.mo.ts)
+
+```
+
+3. What is the approximate lag for the o3 at this site in Santa Barbara? Provide this in meaningful units.
+
+Answer
+The approximate lag shown here is roughly 2.1 days
+
+```{r}
+pacf(sb.mo.ts)
+```
+
+4. Interpret this plot. What does this tell us? Use internet research as appropriate.
+
+Answer
+A time series ia a stream of values just an x-axis.  A PACF shows a partial ACF which shows the specific correlation values between one time series and another.  The higher the lag, the larger the difference you are comparing.  This shows if there is significant correlation from day to day in ozone and if there is a a certain pattern that can be detected based on a specific day of the week.  Good for figuring out which data sets to utilize for predictive model building.  
+
+```{r}
+plot.ts(sb.mo.ts)
+```
+
+```{r}
+plot(log(sb.mo.ts))
+```
+
+5. Transform the monthly Santa Barbara o3 time series by calculating the natural log and plot the results. Which case (original or transformed) is best described by an additive model?
+
+Answer
+Tranformed is best described by an additive model
+
+```{r}
+sb.components <- decompose(sb.mo.ts, type = "additive")
+plot(sb.components)
+class(sb.components)
+```
+
+6. What class is the resulting object from applying decompose()? What does it contain?
+
+Answer
+The class of sb.component is "decomposed ts" it contains parts that each represent underlying categories of patterns within the time series
+
+```{r}
+lagged.sb <- stats::lag(sb.mo.ts, 1)
+plot(lagged.sb)
+```
+
+```{r}
+sb.adj <- sb.mo.ts - sb.components$seasonal
+plot(sb.mo.ts)
+lines(sb.adj, col = "red")
+```
+
+```{r}
+plot(sb.mo.ts, xlim = c(2005,2010))
+lines(sb.adj, col = "red")
+```
+
+7. Assess the additive model performance. How well did it adjust for seasonality in Santa Barbara o3? Show your steps.
+
+Answer
+install.packages("gam")
+```{r}
+decompose(sb.adj, type = "additive")
+pacf(sb.adj)
+plot(log(sb.adj))
+```
+gam::gam.fit(sb.adj, sb.mo.ts)
+
+install.packages("wql")
+```{r}
+require(wql)
+## Loading required package: wql
+## 
+## Attaching package: 'wql'
+## The following object is masked from 'package:lubridate':
+## 
+##     years
+mk <- mannKen(sb.mo.ts)
+mk
+```
+
+```{r}
+mk2 <- seaKen(sb.mo.ts)
+mk2
+
+seasonTrend(sb.mo.ts, plot = TRUE, scales = "free")
+
+plotSeason(sb.mo.ts, "by.month")
+
+
+```
+
+8. What can you conclude about the appropriateness of the Seasonal Mann-Kendall test for trend for this case?.
+
+Answer
+The seasonal Man-Kendall test seems appropriate for the trend in this case as it works well with time series data of irregular intervals (differences within days in a month).  However one would need to account for the cycling or seasonality as this test has an inability to do so.  This non-paramtetic test also works for this where the data is not normal where otherwise a linear regression model would generally be used to find trends.  Overall this is one of the strongest tests used by many environmental researchers looking at changes in ecosystems over time so it would only make sense to use it with the daily ozone data from 1980-2011.
+
+What are the trends in monthly Ozone across California from 1980 - 2011? Compare trends between different air quality basins. Show your work and justify your statistical assumptions.
+
+Answer
+
+```{r}
+require(ggplot2)
+ggplot(sb.mo, aes(x = mo, y = o3)) + geom_line()
+
+```
+
+```{r}
+
+
+sb.mo.ts <- ts(sb.mo, start = c(1980, 1), frequency = 180)
+acf(sb.mo)
+
+```
+
+```{r}
+plot(log(sb.mo.ts))
+
+
+mk2 <- seaKen(sb.mo.ts)
+mk2
+
+seasonTrend(sb.mo.ts, plot = TRUE, scales = "free")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
