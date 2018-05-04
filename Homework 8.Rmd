@@ -214,7 +214,7 @@ plotSeason(sb.mo.ts, "by.month")
 Answer
 The seasonal Man-Kendall test seems appropriate for the trend in this case as it works well with time series data of irregular intervals (differences within days in a month).  However one would need to account for the cycling or seasonality as this test has an inability to do so.  This non-paramtetic test also works for this where the data is not normal where otherwise a linear regression model would generally be used to find trends.  Overall this is one of the strongest tests used by many environmental researchers looking at changes in ecosystems over time so it would only make sense to use it with the daily ozone data from 1980-2011.
 
-What are the trends in monthly Ozone across California from 1980 - 2011? Compare trends between different air quality basins. Show your work and justify your statistical assumptions.
+9. What are the trends in monthly Ozone across California from 1980 - 2011? Compare trends between different air quality basins. Show your work and justify your statistical assumptions.
 
 Answer
 
